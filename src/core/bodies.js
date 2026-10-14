@@ -1,6 +1,7 @@
 // ФАЙЛЫ: src/core/bodies.js
 // Динамические тела: круги на XZ, цилиндры для луча, раздвижка и bodyHit.
 import { applyBounceImpulse, createContactTracker } from './bodies-bounce.js';
+import { maybeEmitCrash } from './crash.js';
 
 function defaultMass(kind) {
   return kind === 'car' ? 1200 : 80;
@@ -225,7 +226,11 @@ export function attachBodies(physics) {
         // иначе касание боком или чужая пара в мире даёт ложный bodyHit.
         const closing = -((bvx - avx) * nx + (bvz - avz) * nz);
         const isNew = contacts.isNewContact(a, b);
-        if (isNew) applyBounceImpulse(a, b, nx, nz);
+        if (isNew) {
+          // До отскока: impulse = closing, как bodyHit.speed.
+          maybeEmitCrash(engine, a, b, nx, nz);
+          applyBounceImpulse(a, b, nx, nz);
+        }
         if (isNew && closing > 1) {
           engine.emit('bodyHit', { a, b, speed: closing });
         }

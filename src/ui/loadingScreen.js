@@ -10,6 +10,8 @@ export class LoadingScreen {
     this.hidden = false;
     this.root = null;
     this.barFill = null;
+    this.rafId = 0;
+    this.lastFrameMs = 0;
 
     const host = document.getElementById('ui');
     if (!host) return;
@@ -21,7 +23,6 @@ export class LoadingScreen {
     overlay.setAttribute('aria-hidden', 'true');
     overlay.innerHTML = `
       <div class="g5-loading-inner">
-        <div class="g5-loading-title">Palmetto Bay</div>
         <div class="g5-loading-track">
           <div class="g5-loading-fill"></div>
         </div>
@@ -31,6 +32,19 @@ export class LoadingScreen {
     this.root = overlay;
     this.barFill = overlay.querySelector('.g5-loading-fill');
     this.applyProgress(this.readProgress(engine));
+
+    this.lastFrameMs = performance.now();
+    const tick = (now) => {
+      this.rafId = 0;
+      if (this.hidden) return;
+      const dt = Math.min(0.1, Math.max(0, (now - this.lastFrameMs) / 1000));
+      this.lastFrameMs = now;
+      this.tick(dt, this.engine);
+      if (!this.hidden) {
+        this.rafId = requestAnimationFrame(tick);
+      }
+    };
+    this.rafId = requestAnimationFrame(tick);
   }
 
   injectStyle() {
@@ -41,27 +55,22 @@ export class LoadingScreen {
       #g5-loading {
         position: absolute; inset: 0; z-index: 2000;
         display: flex; align-items: center; justify-content: center;
-        pointer-events: none;
-        background: linear-gradient(180deg, rgba(7,16,24,0.92) 0%, rgba(22,52,69,0.78) 50%, rgba(196,90,58,0.55) 100%);
-        font-family: system-ui, sans-serif; color: #fff;
+        pointer-events: auto;
+        background: #071018;
+        font-family: system-ui, sans-serif;
       }
       #g5-loading .g5-loading-inner {
         min-width: 280px; max-width: 420px; width: 70%;
-        text-align: center; pointer-events: none;
-      }
-      #g5-loading .g5-loading-title {
-        font-size: 42px; letter-spacing: 0.04em; margin: 0 0 22px;
-        pointer-events: none;
+        text-align: center;
       }
       #g5-loading .g5-loading-track {
         height: 8px; border-radius: 8px;
         background: rgba(255,255,255,0.16);
-        overflow: hidden; pointer-events: none;
+        overflow: hidden;
       }
       #g5-loading .g5-loading-fill {
         height: 100%; width: 0%;
         background: #2aa7c9;
-        pointer-events: none;
       }
     `;
     document.head.appendChild(style);
@@ -93,22 +102,27 @@ export class LoadingScreen {
     this.barFill.style.width = `${progress * 100}%`;
   }
 
+  tick(dt, engine) {
+    if (this.hidden || !this.root) return;
+    const step = typeof dt === 'number' && !Number.isNaN(dt) ? dt : 0;
+    this.elapsed += step;
+    this.applyProgress(this.readProgress(engine));
+    if (this.readReady(engine) || this.elapsed >= HIDE_AFTER_SEC) {
+      this.hide();
+    }
+  }
+
   hide() {
     if (this.hidden) return;
     this.hidden = true;
+    if (this.rafId) {
+      cancelAnimationFrame(this.rafId);
+      this.rafId = 0;
+    }
     if (this.root) this.root.style.display = 'none';
   }
 
   update(dt, engine) {
-    if (this.hidden || !this.root) return;
-
-    const step = typeof dt === 'number' && !Number.isNaN(dt) ? dt : 0;
-    this.elapsed += step;
-
-    this.applyProgress(this.readProgress(engine));
-
-    if (this.readReady(engine) || this.elapsed >= HIDE_AFTER_SEC) {
-      this.hide();
-    }
+    this.tick(dt, engine);
   }
 }

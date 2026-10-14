@@ -1,9 +1,11 @@
-// ГРУППА 5. HUD: миникарта, подсказки, меню, экран загрузки. Рисовать в #ui.
+// ГРУППА 5. HUD: миникарта, подсказки, меню, загрузка, время, погода. Рисовать в #ui.
 import { Menus } from './menus.js';
 import { Minimap } from './minimap.js';
 import { StatusHud } from './statusHud.js';
 import { GameHud } from './gameHud.js';
 import { LoadingScreen } from './loadingScreen.js';
+import { TimeSwitch } from './timeSwitch.js';
+import { WeatherHud } from './weatherHud.js';
 
 export class HUD {
   constructor() {
@@ -17,11 +19,16 @@ export class HUD {
     this.status = new StatusHud();
     this.gameHud = new GameHud();
     this.loading = new LoadingScreen();
+    this.timeSwitch = new TimeSwitch();
+    this.weatherHud = new WeatherHud();
     this.menus.init(engine);
     this.minimap.init(engine);
     this.status.init(engine);
     this.gameHud.init(engine);
     this.loading.init(engine);
+    // После menus: TimeSwitch ищет #g5-pause-main.
+    this.timeSwitch.init(engine);
+    this.weatherHud.init(engine);
   }
 
   update(dt, engine) {
@@ -30,5 +37,7 @@ export class HUD {
     this.status.update(dt, engine);
     this.gameHud.update(dt, engine);
     this.loading.update(dt, engine);
+    this.timeSwitch.update(dt, engine);
+    this.weatherHud.update(dt, engine);
   }
 }

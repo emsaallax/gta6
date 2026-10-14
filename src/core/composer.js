@@ -1,4 +1,4 @@
-// Постобработка: RenderPass → GTAO → Bloom → luma → grade → reflect → SMAA → капли → Output.
+// Постобработка: RenderPass → GTAO → Bloom → luma → grade → reflect → SMAA → капли → feel → Output.
 // Low — без композера.
 import * as THREE from 'three';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
@@ -12,6 +12,7 @@ import { createGradePass, updateGradePass } from './post-grade.js';
 import { createLumaClampPass, updateLumaClampPass } from './post-luma.js';
 import { createReflectPass, updateReflectPass } from './post-reflect.js';
 import { createRaindropsPass, updateRaindropsPass } from './post-raindrops.js';
+import { createFeelPass, updateFeelPass } from './post-feel.js';
 
 const QUALITIES = { low: true, medium: true, high: true };
 
@@ -59,7 +60,7 @@ function cssSize(renderer) {
 
 /**
  * Render target с MSAA.
- * Цепочка: RenderPass → GTAO → UnrealBloom → luma → grade → reflect → SMAA → капли → OutputPass.
+ * Цепочка: RenderPass → GTAO → UnrealBloom → luma → grade → reflect → SMAA → капли → feel → OutputPass.
  * Low композер не рисует (CONTRACTS).
  */
 export function createComposer(renderer, scene, camera) {
@@ -96,6 +97,8 @@ export function createComposer(renderer, scene, camera) {
   composer.addPass(aaPass);
   const raindropsPass = createRaindropsPass();
   composer.addPass(raindropsPass);
+  const feelPass = createFeelPass();
+  composer.addPass(feelPass);
   composer.addPass(new OutputPass());
   return {
     composer,
@@ -105,6 +108,7 @@ export function createComposer(renderer, scene, camera) {
     gradePass,
     reflectPass,
     raindropsPass,
+    feelPass,
     aaPass,
     lastWidth: cssW,
     lastHeight: cssH,
@@ -176,6 +180,7 @@ export function renderFrame(engine, bundle) {
   if (bundle?.gradePass) updateGradePass(bundle.gradePass, engine);
   if (bundle?.reflectPass) updateReflectPass(bundle.reflectPass, engine);
   if (bundle?.raindropsPass) updateRaindropsPass(bundle.raindropsPass, engine);
+  if (bundle?.feelPass) updateFeelPass(bundle.feelPass, engine);
 
   const limits = qualityLimits(quality);
   if (!limits.useComposer || !bundle) {

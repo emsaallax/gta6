@@ -9,7 +9,12 @@ import { paintKenneyCar } from './kenneyPaint.js';
 import { applyCarFeel } from './carFeel.js';
 import { loadKenneyCar } from './kenneyModel.js';
 import { collectKenneyWheels, spinKenneyWheels } from './kenneyWheels.js';
-import { attachKenneyMesh, applyKenneyLod, updateCompactLights, applyCarHeading } from './kenneyAttach.js';
+import { attachKenneyMesh, applyKenneyLod, updateCompactLights } from './kenneyAttach.js';
+import { applyCarHeading } from './carHeading.js';
+import { createHeadlightCones, updateHeadlightCones } from './headlightCones.js';
+import { bindVehicleAudio, updateVehicleAudio } from './vehicleAudio.js';
+import { wetDriveMul, applyWetSlip, applyWetMaterials, alignNoseToVelocity } from './wetGrip.js';
+import { createWheelSpray, updateWheelSpray } from './wheelSpray.js';
 
 const EMPTY_CONTROLS = { throttle: 0, brake: 0, steer: 0, handbrake: false };
 const LOD_NEAR = 60;
@@ -20,6 +25,18 @@ function playerXZ(engine) {
   const pos = (p && p.position) || (p && p.object3d && p.object3d.position)
     || (engine.state.cameraTarget && engine.state.cameraTarget.position);
   return { x: pos && pos.x != null ? pos.x : 0, z: pos && pos.z != null ? pos.z : 0 };
+}
+
+function withWetBrake(controls, weather) {
+  const raw = controls || EMPTY_CONTROLS;
+  const { brakeMul } = wetDriveMul(weather);
+  if (brakeMul === 1) return raw;
+  return {
+    throttle: raw.throttle,
+    brake: (Number(raw.brake) || 0) * brakeMul,
+    steer: raw.steer,
+    handbrake: raw.handbrake,
+  };
 }
 
 function bumpKenneyGen(vehicle) {
@@ -92,6 +109,11 @@ export class Vehicles {
     if (!Array.isArray(e.state.vehicles)) e.state.vehicles = [];
     bindEnterExit(e);
     bindVehicleDamage(e);
+    bindVehicleAudio(e);
+    this._cones = createHeadlightCones();
+    if (e.scene && this._cones && this._cones.mesh) e.scene.add(this._cones.mesh);
+    this._spray = createWheelSpray();
+    if (e.scene && this._spray && this._spray.mesh) e.scene.add(this._spray.mesh);
     e.state.vehicleApi = {
       spawn: (type, x, z, heading, controller) => spawnVehicle(e, type, x, z, heading, controller),
       despawn: (vehicle) => despawnVehicle(e, vehicle),
@@ -109,17 +131,20 @@ export class Vehicles {
     const q = e.state.settings && e.state.settings.quality;
     const lodDist = q === 'low' ? LOD_NEAR_LOW : LOD_NEAR;
     const lodDist2 = lodDist * lodDist;
+    const weather = e.state.weather;
 
     for (let i = 0; i < list.length; i++) {
       const v = list[i];
       const ctrl = v.controller;
       if (ctrl === 'player' || ctrl === 'police') {
-        const controls = ctrl === 'player'
+        const raw = ctrl === 'player'
           ? readDriveInput(e.input)
           : (v.controls || EMPTY_CONTROLS);
+        const controls = withWetBrake(raw, weather);
         const hit = stepDrive(v, controls, t, e.physics);
         if (hit && hit.hitWall && hit.impact > 1) applyCrashDamage(v, hit.impact);
         applyCarFeel(v, controls, t);
+        applyWetSlip(v, t, weather, controls);
         if (v._kenney) {
           if (!v.wheels || !v.wheels.fl) v.wheels = collectKenneyWheels(v.object3d);
           spinKenneyWheels(v.wheels, v, t);
@@ -127,7 +152,9 @@ export class Vehicles {
           spinWheels(v, t);
         }
       }
+      applyWetMaterials(v, weather);
       if (v.object3d && Number.isFinite(v.heading)) applyCarHeading(v.object3d, v.heading);
+      alignNoseToVelocity(v, t);
       updateVehicleSmoke(v, t);
       updateCompactLights(v, e);
       applyKenneyLod(v, e);
@@ -138,6 +165,10 @@ export class Vehicles {
         setCarDetail(v._model, low);
       }
     }
+
+    updateHeadlightCones(this._cones, e);
+    updateWheelSpray(this._spray, e, t);
+    updateVehicleAudio(e, t);
 
     if (driven) {
       e.state.cameraTarget = vehicleCameraTarget(driven, e.state.cameraTarget);

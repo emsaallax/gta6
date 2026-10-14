@@ -17,6 +17,7 @@ import {
   stepOrbitLook,
 } from './camera-orbit.js';
 import { createHitShake, hitConcernsPlayer, lerpCam } from './camera-hit.js';
+import { createChaseRig } from './camera-chase.js';
 
 export const CAMERA_FOOT = { distance: 6, height: 2 };
 export const CAMERA_VEHICLE = { distance: 11, height: 1.4 };
@@ -101,6 +102,7 @@ export class CameraRig {
     this._lookIdle = 0;
     this._wasVehicle = false;
     this._shake = createHitShake();
+    this._chase = createChaseRig();
     this._from = new THREE.Vector3();
     this._desired = new THREE.Vector3();
     this._smooth = new THREE.Vector3();
@@ -149,6 +151,8 @@ export class CameraRig {
       speed: t.speed,
     };
 
+    if (engine.input.pressed('KeyV')) this._chase.toggle();
+
     const dx = engine.input.mouse?.dx ?? 0;
     const dy = engine.input.mouse?.dy ?? 0;
     // В машине мышь применяет stepOrbitLook (иначе yaw/pitch удвоятся).
@@ -164,7 +168,10 @@ export class CameraRig {
     }
 
     let desired;
-    if (vehicle && !aiming) {
+    const chasePos = !aiming ? this._chase.desiredPos(target, dt) : null;
+    if (chasePos) {
+      desired = chasePos;
+    } else if (vehicle && !aiming) {
       desired = desiredVehicleOrbit(target, this.yaw, this.pitch, this.zoom);
     } else {
       desired = desiredCameraPos(target, this.yaw, this.pitch, this.zoom, aiming);

@@ -2,7 +2,8 @@
 import { stepTrafficVehicle } from './laneFollow.js';
 import { spinWheels } from '../vehicles/driveSim.js';
 import { collectKenneyWheels, spinKenneyWheels } from '../vehicles/kenneyWheels.js';
-import { applyCarHeading } from '../vehicles/kenneyAttach.js';
+import { applyCarHeading } from '../vehicles/carHeading.js';
+import { alignNoseToVelocity } from '../vehicles/wetGrip.js';
 import {
   TRAFFIC_MIN,
   TRAFFIC_MAX,
@@ -71,6 +72,7 @@ export class Traffic {
       if (v.controller !== 'traffic') continue;
       stepTrafficVehicle(v, t, engine);
       if (v.object3d && Number.isFinite(v.heading)) applyCarHeading(v.object3d, v.heading);
+      alignNoseToVelocity(v, t);
       if (v._kenney) {
         if (!v.wheels || !v.wheels.fl) v.wheels = collectKenneyWheels(v.object3d);
         spinKenneyWheels(v.wheels, v, t);

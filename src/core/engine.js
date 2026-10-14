@@ -14,6 +14,9 @@ import {
 } from './composer.js';
 import { attachMouseButtons } from './mouse-buttons.js';
 import { attachBodies } from './bodies.js';
+import { createFx } from './fx.js';
+import { createSlowMo } from './timescale.js';
+import { pulseHurt } from './post-feel.js';
 
 export class Engine {
   constructor(canvas) {
@@ -30,11 +33,27 @@ export class Engine {
     this.clock = new THREE.Clock();
     this.systems = [];          // объекты с update(dt, engine)
     this.state = {};            // общий словарь: state.player, state.city, state.vehicles ...
+    this.state.timeScale = 1;
     this.events = new EventTarget();
     addEventListener('resize', () => this.resize());
     this.resize();
     this.composer = createComposer(this.renderer, this.scene, this.camera);
     resizeComposer(this.composer, innerWidth, innerHeight, readQuality(this));
+    const fx = createFx(this.scene);
+    const meshes = fx && fx.meshes;
+    if (meshes) {
+      for (let i = 0; i < meshes.length; i++) {
+        if (meshes[i]) meshes[i].raycast = () => {};
+      }
+    }
+    this.state.fx = fx;
+    this._slowMo = createSlowMo();
+    this.on('crash', (d) => {
+      this._slowMo.onCrash(d, this.state.player);
+    });
+    this.on('playerDamage', (d) => {
+      pulseHurt(this.composer && this.composer.feelPass, d && d.amount);
+    });
   }
   add(system) { this.systems.push(system); system.init?.(this); return system; }
   emit(name, detail) { this.events.dispatchEvent(new CustomEvent(name, { detail })); }

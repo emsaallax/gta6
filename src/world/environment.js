@@ -1,8 +1,10 @@
-// ГРУППА 5. Свет, небо, день/ночь, HDRI, пляж. e.state.time = 0..24
+// ГРУППА 5. Свет, небо, день/ночь, HDRI, погода, дождь, пляж. e.state.time = 0..24
 import { SkyCycle } from './env/skyCycle.js';
 import { NightSky } from './env/nightSky.js';
 import { HdriSky } from './env/hdriSky.js';
 import { BeachProps } from './env/beachProps.js';
+import { Weather } from './env/weather.js';
+import { Rain } from './env/rain.js';
 import { setupShadowMap, updateSoftShadows, updateHaze } from './env/hazeShadows.js';
 
 function qualityOf(engine) {
@@ -23,18 +25,20 @@ export class Environment {
     this.nightSky = new NightSky();
     this.hdriSky = new HdriSky();
     this.beachProps = new BeachProps();
+    this.weather = new Weather();
+    this.rain = new Rain();
     this._shadowQ = null;
 
     this.skyCycle.init(engine);
     this.nightSky.init(engine);
-    // HdriSky.init не зовём: loadHDR отдаёт PMREM CubeUV, его нельзя
-    // ставить в scene.background (чёрное небо), сферы светятся серыми
-    // квадратами, ночной IBL + bloom — белая пелена. Параллельная
-    // загрузка dusk HDR даёт requestfailed в приёмке. Пока исполнители
-    // 01/03 не починят — только процедурное Sky.js.
+    // HDRI только как IBL (scene.environment). Фон — Sky.js, иначе PMREM CubeUV даёт чёрное небо.
+    this.hdriSky.init(engine);
     this.beachProps.init(engine);
+    this.weather.init(engine);
+    this.rain.init(engine);
     this._restoreSky(engine);
     this._sync(engine);
+    this.weather.applyLook(engine);
   }
 
   update(dt, engine) {
@@ -44,17 +48,16 @@ export class Environment {
     this.nightSky.update(dt, engine);
     this.beachProps.update(dt, engine);
     this._sync(engine);
+    this.weather.update(dt, engine);
+    this.rain.update(dt, engine);
   }
 
-  // Sky.js всегда виден. Фон — цвет атмосферы, не PMREM.
+  // Купол Sky.js всегда виден. Фон — цвет атмосферы, не PMREM.
+  // Environment из HdriSky оставляем (IBL); ночью не обнуляем.
   _restoreSky(engine) {
     if (this.skyCycle.sky) this.skyCycle.sky.visible = true;
     if (this.skyCycle._fogCol) engine.scene.background = this.skyCycle._fogCol;
     if (this.hdriSky && this.hdriSky._group) this.hdriSky._group.visible = false;
-    const time = Number(engine.state && engine.state.time);
-    if (time < 6 || time >= 19.5) {
-      engine.scene.environment = null;
-    }
   }
 
   _sync(engine) {

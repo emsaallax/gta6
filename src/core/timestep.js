@@ -1,3 +1,5 @@
+import { scaledDt } from './timescale.js';
+
 /** Секунд на один шаг физики. */
 export const FIXED_DT = 1 / 60;
 
@@ -64,10 +66,14 @@ export function attachLoop(engine) {
     const dt = Math.min(engine.clock.getDelta(), 0.05);
 
     if (!isPaused(engine)) {
+      // Таймер слоу-мо от realtime dt, не от scaled.
+      engine._slowMo?.update?.(dt, engine);
       let stepN = 0;
       stepper.tick(dt, (fixedDt) => {
-        for (const s of engine.systems) s.update?.(fixedDt, engine);
+        const simDt = scaledDt(fixedDt, engine);
+        for (const s of engine.systems) s.update?.(simDt, engine);
         engine.physics.stepBodies?.(engine);
+        engine.state.fx?.update?.(simDt, engine);
         stepN += 1;
         // Один клик — один фикс-шаг: иначе justPressed живёт до endFrame и даёт 2–3 выстрела.
         if (stepN === 1) engine.input.clearPressed?.();

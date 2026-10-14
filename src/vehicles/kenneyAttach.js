@@ -3,6 +3,9 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { collectKenneyWheels } from './kenneyWheels.js';
+import { applyCarHeading, faceKenneyPlusZ } from './carHeading.js';
+
+export { applyCarHeading, faceKenneyPlusZ };
 
 export const LOD_FAR = 60;
 export const LOD_FAR_LOW = 45;
@@ -308,57 +311,6 @@ export function applyKenneyLod(vehicle, engine) {
   setKenneyLod(vehicle.object3d, dist > far);
 }
 
-function avgNamedLocal(root, names) {
-  const acc = new THREE.Vector3();
-  const p = new THREE.Vector3();
-  let n = 0;
-  for (let i = 0; i < names.length; i++) {
-    const o = typeof root.getObjectByName === 'function' ? root.getObjectByName(names[i]) : null;
-    if (!o) continue;
-    if (typeof o.getWorldPosition === 'function') o.getWorldPosition(p);
-    else continue;
-    if (typeof root.worldToLocal === 'function') root.worldToLocal(p);
-    acc.add(p);
-    n += 1;
-  }
-  if (!n) return null;
-  acc.multiplyScalar(1 / n);
-  return acc;
-}
-
-/**
- * Нос Kenney → локальный +Z (ход игры: heading 0 едет по +Z).
- * Поворот только внутренней обёртки, object3d.rotation.y остаётся heading.
- */
-export function alignKenneyNose(root) {
-  if (!root) return;
-  if (root.userData && root.userData.kenneyFaced === true) return;
-  if (typeof root.updateMatrixWorld === 'function') root.updateMatrixWorld(true);
-  const front = avgNamedLocal(root, ['wheel-front-left', 'wheel-front-right', 'wheel_fl', 'wheel_fr']);
-  const back = avgNamedLocal(root, ['wheel-back-left', 'wheel-back-right', 'wheel_rl', 'wheel_rr']);
-  if (!root.userData) root.userData = {};
-  root.userData.kenneyFaced = true;
-  if (!front || !back) return;
-  const dx = front.x - back.x;
-  const dz = front.z - back.z;
-  if (dx * dx + dz * dz < 1e-6) return;
-  const yaw = Math.atan2(dx, dz);
-  if (Math.abs(yaw) < 0.08) return;
-  const visual = new THREE.Group();
-  visual.name = 'kenneyFacing';
-  const kids = root.children.slice();
-  for (let i = 0; i < kids.length; i++) visual.add(kids[i]);
-  visual.rotation.y = -yaw;
-  root.add(visual);
-}
-
-/** Курс: YXZ, чтобы крен/клевок не уводили нос вбок. */
-export function applyCarHeading(object3d, heading) {
-  if (!object3d || !object3d.rotation) return;
-  if (object3d.rotation.order !== 'YXZ') object3d.rotation.order = 'YXZ';
-  object3d.rotation.y = heading;
-}
-
 export function attachKenneyMesh(engine, vehicle, loaded) {
   if (!engine || !vehicle || !loaded || !loaded.object3d) return false;
   const list = engine.state && engine.state.vehicles;
@@ -370,7 +322,7 @@ export function attachKenneyMesh(engine, vehicle, loaded) {
   const heading = Number.isFinite(vehicle.heading) ? vehicle.heading : 0;
   mergeKenneyBody(next);
   setupCompactLights(next, vehicle.type || loaded.type);
-  alignKenneyNose(next);
+  faceKenneyPlusZ(next);
   if (next.position && typeof next.position.set === 'function') next.position.set(x, 0, z);
   applyCarHeading(next, heading);
   if (engine.scene) {
