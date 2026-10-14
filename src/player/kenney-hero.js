@@ -129,9 +129,6 @@ export async function loadKenneyHero(assets) {
   const object3d = new THREE.Group();
   object3d.name = 'kenneyHero';
   object3d.rotation.y = 0;
-  // Kenney смотрит в −Z. Разворот на внутреннем клоне: ход героя каждый кадр
-  // пишет object3d.rotation.y = heading и стёр бы Math.PI на обёртке.
-  visual.rotation.y = Math.PI;
   object3d.add(visual);
   fitHeightAndFeet(object3d);
   enableShadows(object3d);

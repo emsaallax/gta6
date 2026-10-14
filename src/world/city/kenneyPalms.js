@@ -123,13 +123,34 @@ function makeFallbackMat() {
   });
 }
 
-function pickColormapMat(meshes) {
-  for (let i = 0; i < meshes.length; i++) {
-    let mat = meshes[i].material;
-    if (Array.isArray(mat)) mat = mat[0];
-    if (mat) return mat.clone();
+const LEAF_GREEN = 0x45a63f;
+
+/** Цвет примитива: зелёные материалы (листья) -> тропический зелёный, остальное (ствол) -> цвет материала. */
+function primitiveColor(mat) {
+  const m = Array.isArray(mat) ? mat[0] : mat;
+  const c = new THREE.Color(0x8a5a34);
+  if (m && m.color) c.copy(m.color);
+  const name = m && m.name ? String(m.name).toLowerCase() : '';
+  if (name.indexOf('leaf') >= 0 || (c.g > c.r && c.g >= 0.5)) c.set(LEAF_GREEN);
+  return c;
+}
+
+/** Оставляет position/normal, пишет color из материала примитива. */
+function bakeColor(geo, c) {
+  const names = Object.keys(geo.attributes);
+  for (let i = 0; i < names.length; i++) {
+    const n = names[i];
+    if (n !== 'position' && n !== 'normal') geo.deleteAttribute(n);
   }
-  return makeFallbackMat();
+  const n = geo.attributes.position.count;
+  const a = new Float32Array(n * 3);
+  for (let i = 0; i < n; i++) {
+    a[i * 3] = c.r;
+    a[i * 3 + 1] = c.g;
+    a[i * 3 + 2] = c.b;
+  }
+  geo.setAttribute('color', new THREE.BufferAttribute(a, 3));
+  return geo;
 }
 
 async function loadPalmType(assets, path) {
@@ -146,9 +167,10 @@ async function loadPalmType(assets, path) {
     if (!meshes.length) return null;
     const parts = [];
     for (let i = 0; i < meshes.length; i++) {
-      const geo = meshes[i].geometry.clone();
-      geo.applyMatrix4(meshes[i].matrixWorld);
-      parts.push(geo);
+      let g = meshes[i].geometry.clone();
+      g.applyMatrix4(meshes[i].matrixWorld);
+      if (g.index) g = g.toNonIndexed();
+      parts.push(bakeColor(g, primitiveColor(meshes[i].material)));
     }
     const geo = parts.length === 1 ? parts[0] : mergeGeometries(parts, false);
     if (parts.length > 1) {
@@ -156,7 +178,7 @@ async function loadPalmType(assets, path) {
     }
     if (!geo) return null;
     sitOnGround(geo);
-    const mat = pickColormapMat(meshes);
+    const mat = makeFallbackMat();
     return { geo, mat };
   } catch (_e) {
     return null;

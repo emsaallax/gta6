@@ -85,6 +85,11 @@ export class DriveMission {
     if (engine.state.paused === true) return;
 
     const status = m.status;
+    // Миссия «Оторваться от погони» (escape.js) ведёт себя сама: пока активна, не мешаем.
+    if (m.id === 'escape' && status !== 'success' && status !== 'fail') {
+      if (this.marker) this.marker.visible = false;
+      return;
+    }
 
     if (status === 'success' || status === 'fail') {
       this.endHold += dt || 0;

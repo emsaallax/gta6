@@ -1,6 +1,7 @@
 // ОРКЕСТРАТОР владеет этим файлом. Группы регистрируют свои системы здесь (одной строкой).
 import { Engine } from './core/engine.js';
 import { Assets } from './assets/assets.js';
+import { Audio } from './audio/audio.js';
 import { City } from './world/city.js';
 import { Environment } from './world/environment.js';
 import { Player } from './player/player.js';
@@ -14,6 +15,7 @@ import { HUD } from './ui/hud.js';
 
 const engine = new Engine(document.getElementById('game'));
 engine.add(new Assets());
+engine.add(new Audio());         // группа 5, второй после Assets (CONTRACTS §11)
 engine.add(new Environment());   // группа 5
 engine.add(new City());          // группа 2
 engine.add(new Vehicles());      // группа 4

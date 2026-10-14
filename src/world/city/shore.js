@@ -132,7 +132,7 @@ export function buildShore(engine, layout) {
     })
   );
   parapet.position.set(0, 0.45, beachZ0);
-  parapet.castShadow = true;
+  parapet.castShadow = false;
   parapet.receiveShadow = true;
   scene.add(parapet);
 

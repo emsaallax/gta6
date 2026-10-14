@@ -317,7 +317,7 @@ export function buildProps(engine, layout) {
   scene.add(lampGlobes);
 
   const tfN = Math.max(1, lightPts.length);
-  const tfPosts = makeInstanced(tfPostGeo, postMat, tfN, true);
+  const tfPosts = makeInstanced(tfPostGeo, postMat, tfN, false);
   const tfRed = makeInstanced(tfBoxGeo, tfRedMat, tfN, false);
   const tfYellow = makeInstanced(tfBoxGeo, tfYellowMat, tfN, false);
   const tfGreen = makeInstanced(tfBoxGeo, tfGreenMat, tfN, false);

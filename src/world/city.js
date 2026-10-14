@@ -20,6 +20,11 @@ import { buildLampSpots, updateLampSpots } from './city/lampSpots.js';
 import { buildPuddles, updatePuddles } from './city/puddles.js';
 import { registerWetMat, updateWetSurfaces } from './city/wetSurfaces.js';
 import { registerWindowMat, updateWindowNight } from './city/windowNight.js';
+import { liftPalmMats, liftFacadeMats, updateDayBright } from './city/dayBright.js';
+import { buildCover, updateCover } from './city/cover.js';
+import { buildBreakHydrants, updateBreakHydrants } from './city/breakHydrants.js';
+import { buildBreakLamps, updateBreakLamps } from './city/breakLamps.js';
+import { buildBreakStreet, updateBreakStreet } from './city/breakStreet.js';
 
 function setVisible(obj, on) {
   if (!obj) return;
@@ -28,6 +33,20 @@ function setVisible(obj, on) {
     return;
   }
   obj.visible = !!on;
+}
+
+// Порядок в kenneyDress: [лампы(1-2)], dumpster, bush, bench, hydrant, awning, parasol, lod.
+// Считаем с конца: lod=n-1, parasol=n-2, awning=n-3, hydrant=n-4, bench=n-5, bush=n-6, dumpster=n-7.
+function hideOldDress(meshes, ok) {
+  const n = meshes ? meshes.length : 0;
+  if (n < 8) return;
+  if (ok.lamps) for (let i = 0; i <= n - 8; i++) setVisible(meshes[i], false);
+  if (ok.street) {
+    setVisible(meshes[n - 7], false); // урны
+    setVisible(meshes[n - 5], false); // скамейки
+    setVisible(meshes[n - 2], false); // зонты
+  }
+  if (ok.hydrants) setVisible(meshes[n - 4], false);
 }
 
 function registerMats(list, register) {
@@ -57,6 +76,8 @@ export class City {
     registerMats(getBuildingWindowMats(), registerWetMat);
     registerMats(getSkylineWindowMats(), registerWetMat);
     registerMats(getPavedWetMats(), registerWetMat);
+    liftFacadeMats(getBuildingWindowMats());
+    liftFacadeMats(getSkylineWindowMats());
     const graph = buildCityGraph(layout);
     e.state.city = {
       size: layout.size,
@@ -67,7 +88,28 @@ export class City {
       sidewalks: graph.sidewalks,
       pois: graph.pois,
     };
+    this._breakP = this._buildBreak(e, layout).catch(() => ({}));
     void this._hydrate(e).catch(() => {});
+  }
+
+  // Укрытия и ломаемые пропсы: независимо от PBR/Kenney, state.city уже записан.
+  async _buildBreak(e, layout) {
+    const ok = {};
+    const run = async (key, fn) => {
+      try {
+        await fn();
+        ok[key] = true;
+      } catch (_err) {
+        ok[key] = false;
+      }
+    };
+    await Promise.all([
+      run('cover', () => buildCover(e, layout)),
+      run('hydrants', () => buildBreakHydrants(e, layout)),
+      run('lamps', () => buildBreakLamps(e, layout)),
+      run('street', () => buildBreakStreet(e, layout)),
+    ]);
+    return ok;
   }
 
   async _hydrate(e) {
@@ -79,6 +121,9 @@ export class City {
     } catch (_err) {
       // канвас-фасады остаются
     }
+    // PBR только что подставил aoMap/metalnessMap: поднимаем фасады ещё раз (идемпотентно).
+    liftFacadeMats(getBuildingWindowMats());
+    liftFacadeMats(getSkylineWindowMats());
     try {
       await loadGroundPBR(assets);
       const ground = buildPbrGround(e, layout);
@@ -97,16 +142,19 @@ export class City {
     }
     try {
       const palms = await buildKenneyPalms(e, layout);
+      if (palms && palms.meshes) liftPalmMats(palms.meshes);
       if (palms && palms.usedAssets) {
         setVisible(this._props && this._props.palms, false);
       } else if (palms && palms.meshes) {
         setVisible(palms.meshes, false);
+        if (this._props && this._props.palms) liftPalmMats([this._props.palms]);
       }
     } catch (_err) {
       // пальмы props.js остаются
     }
     try {
       const dress = await buildKenneyDress(e, layout);
+      this._dress = dress;
       if (dress && dress.meshes && dress.meshes.length) {
         setVisible(this._props && this._props.lampPosts, false);
         setVisible(this._props && this._props.lampGlobes, false);
@@ -114,6 +162,16 @@ export class City {
       }
     } catch (_err) {
       // фонари props.js остаются
+    }
+    try {
+      const ok = (await this._breakP) || {};
+      if (ok.lamps) {
+        setVisible(this._props && this._props.lampPosts, false);
+        setVisible(this._props && this._props.lampGlobes, false);
+      }
+      if (this._dress && this._dress.meshes) hideOldDress(this._dress.meshes, ok);
+    } catch (_err) {
+      // старые пропсы остаются
     }
   }
 
@@ -135,5 +193,10 @@ export class City {
     updatePuddles(dt, e);
     updateWetSurfaces(dt, e);
     updateWindowNight(dt, e);
+    updateDayBright(dt, e);
+    updateCover(dt, e);
+    updateBreakHydrants(dt, e);
+    updateBreakLamps(dt, e);
+    updateBreakStreet(dt, e);
   }
 }

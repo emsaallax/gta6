@@ -15,7 +15,27 @@ function pedSpeed(ped) {
   if (!body) return 0;
   const vx = body.vx || 0;
   const vz = body.vz || 0;
-  return Math.hypot(vx, vz);
+  const bs = Math.hypot(vx, vz);
+  if (bs > 0.01) return bs;
+  return ped._mv || 0;
+}
+
+/** Скорость по смещению ped.position между вызовами (пешие копы без body.vx). Смещение > 5 м = телепорт. */
+function trackMove(ped, dt) {
+  const p = ped.position;
+  if (!p) { ped._mv = 0; return; }
+  const x = p.x || 0;
+  const z = p.z || 0;
+  let mv = 0;
+  if (ped._ax !== undefined && dt > 0) {
+    const dx = x - ped._ax;
+    const dz = z - ped._az;
+    const d = Math.hypot(dx, dz);
+    if (d <= 5) mv = d / dt;
+  }
+  ped._ax = x;
+  ped._az = z;
+  ped._mv = mv;
 }
 
 function distToPlayer(ped, playerPos) {
@@ -78,6 +98,7 @@ function setRootVisible(ped, visible) {
 export function updatePedAnim(ped, dt, playerPos, frame) {
   if (!ped || !ped._kenney) return;
   applyHeading(ped);
+  trackMove(ped, dt);
   playClip(ped._kenney, chooseClip(ped));
 }
 
@@ -123,6 +144,7 @@ export function updateAllPedAnims(list, dt, playerPos, frame) {
       setRootVisible(ped, true);
       if (ped._kenney) {
         applyHeading(ped);
+        trackMove(ped, dt);
         playClip(ped._kenney, chooseClip(ped));
         tickMixer(ped, dt, f, ped._dist);
       }

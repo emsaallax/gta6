@@ -1,4 +1,5 @@
 // ФАЙЛЫ: src/audio/audio.js
+import { ChaseAudio } from './chaseAudio.js';
 
 export const SOUND_NAMES = [
   'engine', 'tires', 'horn', 'siren', 'shot', 'hit',
@@ -233,6 +234,8 @@ export class Audio {
     this._ctx = null;
     this._masterGain = null;
     this._noise = null;
+    this._chase = null;
+    this._chaseStars = -1;
     this._loops = new Map();
     this._resumeBound = null;
   }
@@ -257,12 +260,22 @@ export class Audio {
     this._masterGain.gain.value = 1;
     this._masterGain.connect(ctx.destination);
     this._noise = makeNoiseBuffer(ctx);
+    try {
+      this._chase = new ChaseAudio(ctx, this._masterGain, this._noise);
+    } catch (_e) {
+      this._chase = null;
+    }
 
     this._resumeBound = () => {
       if (this._ctx && this._ctx.resume) this._ctx.resume();
     };
     document.addEventListener('click', this._resumeBound);
     document.addEventListener('pointerdown', this._resumeBound);
+  }
+
+  dispose() {
+    if (this._chase) this._chase.dispose();
+    this._chase = null;
   }
 
   play(name, opts) {
@@ -313,6 +326,17 @@ export class Audio {
     const weather = state.weather;
     const rain = weather && Number.isFinite(weather.rain) ? weather.rain : 0;
     const wind = weather && Number.isFinite(weather.wind) ? weather.wind : 0;
+
+    const chase = this._chase;
+    if (chase) {
+      const w = state.wanted;
+      const stars = started && w && Number.isFinite(w.level) ? w.level : 0;
+      if (stars !== this._chaseStars) {
+        this._chaseStars = stars;
+        chase.setIntensity(stars / 5);
+      }
+      chase.update(_dt);
+    }
 
     if (!started) {
       this._setLoopVol('amb-city', 0);

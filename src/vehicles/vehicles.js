@@ -4,7 +4,13 @@ import { stepDrive, spinWheels } from './driveSim.js';
 import { makeVehicle, addCarBody, removeCarBody } from './vehicleRecord.js';
 import { bindEnterExit } from './enterExit.js';
 import { readDriveInput, vehicleCameraTarget } from './occupant.js';
-import { bindVehicleDamage, applyCrashDamage, updateVehicleSmoke } from './damageSmoke.js';
+import { bindVehicleDamage, applyCrashDamage } from './damageSmoke.js';
+import { updateSuspension, kickSuspension } from './suspension.js';
+import { applyDent, resetDents } from './dents.js';
+import { syncDamage, crashParts } from './damageParts.js';
+import { createSkidMarks, updateSkidMarks } from './skidMarks.js';
+import { bindScrapeSparks, updateScrapeSparks } from './scrapeSparks.js';
+import { updateWreckFx } from './wreckFx.js';
 import { paintKenneyCar } from './kenneyPaint.js';
 import { applyCarFeel } from './carFeel.js';
 import { loadKenneyCar } from './kenneyModel.js';
@@ -37,6 +43,22 @@ function withWetBrake(controls, weather) {
     steer: raw.steer,
     handbrake: raw.handbrake,
   };
+}
+
+// crash даёт тела или vehicle: приводим к vehicle через body.ref
+function carOf(x) {
+  if (!x) return null;
+  const r = x.ref || x;
+  return r && r.object3d && r.type != null && r.radius != null ? r : null;
+}
+
+// удар по машине: подвеска, вмятина, отлёт деталей
+function onCarHit(engine, v, impulse, point) {
+  if (!v) return;
+  kickSuspension(v, impulse);
+  if (point) applyDent(v, point, impulse);
+  syncDamage(v);
+  crashParts(engine, v, impulse, point);
 }
 
 function bumpKenneyGen(vehicle) {
@@ -84,6 +106,7 @@ function despawnVehicle(engine, vehicle) {
   const player = engine.state && engine.state.player;
   if (player && player.inVehicle === vehicle) return;
   bumpKenneyGen(vehicle);
+  resetDents(vehicle);
   removeCarBody(engine.physics, vehicle);
   if (engine.scene && vehicle.object3d) engine.scene.remove(vehicle.object3d);
   const list = engine.state.vehicles;
@@ -110,6 +133,14 @@ export class Vehicles {
     bindEnterExit(e);
     bindVehicleDamage(e);
     bindVehicleAudio(e);
+    bindScrapeSparks(e);
+    this._skid = createSkidMarks();
+    if (e.scene && this._skid && this._skid.mesh) e.scene.add(this._skid.mesh);
+    e.on('crash', (ev) => {
+      const imp = Number(ev && ev.impulse) || 0;
+      onCarHit(e, carOf(ev.a), imp, ev.point);
+      onCarHit(e, carOf(ev.b), imp, ev.point);
+    });
     this._cones = createHeadlightCones();
     if (e.scene && this._cones && this._cones.mesh) e.scene.add(this._cones.mesh);
     this._spray = createWheelSpray();
@@ -137,12 +168,22 @@ export class Vehicles {
       const v = list[i];
       const ctrl = v.controller;
       if (ctrl === 'player' || ctrl === 'police') {
-        const raw = ctrl === 'player'
+        const raw = v._exploded ? EMPTY_CONTROLS : ctrl === 'player'
           ? readDriveInput(e.input)
           : (v.controls || EMPTY_CONTROLS);
         const controls = withWetBrake(raw, weather);
         const hit = stepDrive(v, controls, t, e.physics);
         if (hit && hit.hitWall && hit.impact > 1) applyCrashDamage(v, hit.impact);
+        v._scrape = hit && hit.hitWall ? 1 : 0;
+        // занос: ручник на ходу или резкий руль на скорости (driveSim _slip не пишет)
+        const sp = Math.abs(v.speed) || 0;
+        v._slip = controls.handbrake && sp > 4 ? 1
+          : Math.min(1, Math.abs(Number(v.steer) || 0) * sp / 8 * (sp > 10 ? 1 : 0));
+        if (hit && hit.hitWall && hit.impact > 6 && !(v._wallCd > 0)) {
+          v._wallCd = 0.5;
+          const h = Number(v.heading) || 0;
+          onCarHit(e, v, hit.impact, { x: v.position.x + Math.sin(h) * 1.3, y: 0.6, z: v.position.z + Math.cos(h) * 1.3 });
+        }
         applyCarFeel(v, controls, t);
         applyWetSlip(v, t, weather, controls);
         if (v._kenney) {
@@ -155,7 +196,11 @@ export class Vehicles {
       applyWetMaterials(v, weather);
       if (v.object3d && Number.isFinite(v.heading)) applyCarHeading(v.object3d, v.heading);
       alignNoseToVelocity(v, t);
-      updateVehicleSmoke(v, t);
+      updateSuspension(v, t);
+      v._hitCd = Math.max(0, (v._hitCd || 0) - t);
+      v._wallCd = Math.max(0, (v._wallCd || 0) - t);
+      syncDamage(v);
+      updateWreckFx(e, v, t);
       updateCompactLights(v, e);
       applyKenneyLod(v, e);
       if (v._model) {
@@ -169,6 +214,8 @@ export class Vehicles {
     updateHeadlightCones(this._cones, e);
     updateWheelSpray(this._spray, e, t);
     updateVehicleAudio(e, t);
+    updateSkidMarks(this._skid, e, t);
+    updateScrapeSparks(e, t);
 
     if (driven) {
       e.state.cameraTarget = vehicleCameraTarget(driven, e.state.cameraTarget);

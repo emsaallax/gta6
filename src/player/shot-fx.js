@@ -1,10 +1,11 @@
 // ФАЙЛЫ: src/player/shot-fx.js
 import * as THREE from 'three';
 
+export const FLASH_SCALE = 0.15;
 export const FLASH_LIFE = 0.04;
-export const TRACER_LIFE = 0.06;
-export const SPARK_LIFE = 0.2;
-export const SPARK_COUNT = 10;
+export const TRACER_LIFE = 0.10;
+export const SPARK_LIFE = 0.25;
+export const SPARK_COUNT = 12;
 export const SPARK_POOL = 40;
 
 const _pos = new THREE.Vector3();
@@ -13,9 +14,9 @@ const _scale = new THREE.Vector3();
 const _mat = new THREE.Matrix4();
 
 /**
- * scene.add: 1 вспышка (Mesh Basic, цвет 0xffee88, scale 0.12, visible=false),
- * 1 Line трассер (жёлто-белый), 1 InstancedMesh искр (сфера r=0.03, count=40).
- * Один PointLight (цвет 0xffcc66, intensity 0, distance 4) — не каждый кадр новый.
+ * scene.add: 1 вспышка (Mesh Basic, цвет 0xffee88, scale FLASH_SCALE, visible=false),
+ * 1 Line трассер (жёлто-белый непрозрачный), 1 InstancedMesh искр (сфера r=0.03, count=40).
+ * Один PointLight (цвет 0xffcc66, intensity 0, distance 6) — не каждый кадр новый.
  * Без утечек: ничего не создавать в play/update.
  */
 export function createShotFx(scene) {
@@ -24,10 +25,11 @@ export function createShotFx(scene) {
     color: 0xffee88,
     transparent: true,
     opacity: 1,
+    depthTest: true,
     depthWrite: false,
   });
   const flash = new THREE.Mesh(flashGeo, flashMat);
-  flash.scale.setScalar(0.12);
+  flash.scale.setScalar(FLASH_SCALE);
   flash.visible = false;
   flash.frustumCulled = false;
   scene.add(flash);
@@ -37,7 +39,7 @@ export function createShotFx(scene) {
   tracerGeo.setAttribute('position', new THREE.BufferAttribute(tracerPos, 3));
   const tracerMat = new THREE.LineBasicMaterial({
     color: 0xfff4aa,
-    transparent: true,
+    transparent: false,
     opacity: 1,
     depthWrite: false,
   });
@@ -72,7 +74,7 @@ export function createShotFx(scene) {
   }
   sparks.instanceMatrix.needsUpdate = true;
 
-  const light = new THREE.PointLight(0xffcc66, 0, 4);
+  const light = new THREE.PointLight(0xffcc66, 0, 6);
   light.visible = false;
   scene.add(light);
 
@@ -91,6 +93,9 @@ export function createShotFx(scene) {
 
   return {
     play(muzzle, hitPoint, engine) {
+      if (!muzzle || !hitPoint) return;
+      if (typeof muzzle.x !== 'number' || typeof hitPoint.x !== 'number') return;
+
       const mx = muzzle.x;
       const my = muzzle.y;
       const mz = muzzle.z;
@@ -99,12 +104,14 @@ export function createShotFx(scene) {
       const hz = hitPoint.z;
 
       flash.position.set(mx, my, mz);
+      flash.scale.setScalar(FLASH_SCALE);
       flash.visible = true;
       flashLife = FLASH_LIFE;
       flashMat.opacity = 1;
 
       light.position.set(mx, my, mz);
-      light.intensity = 2;
+      light.intensity = 8;
+      light.distance = 6;
       light.visible = true;
 
       tracerPos[0] = mx;
@@ -126,7 +133,6 @@ export function createShotFx(scene) {
         sparkX[i] = hx;
         sparkY[i] = hy;
         sparkZ[i] = hz;
-        // Случайная скорость вверх и наружу от точки попадания.
         const ang = Math.random() * Math.PI * 2;
         const out = 2 + Math.random() * 6;
         sparkVx[i] = Math.cos(ang) * out;
@@ -151,7 +157,7 @@ export function createShotFx(scene) {
         flashLife -= dt;
         const t = flashLife / FLASH_LIFE;
         flashMat.opacity = Math.max(0, t);
-        light.intensity = 2 * Math.max(0, t);
+        light.intensity = 8 * Math.max(0, t);
         if (flashLife <= 0) {
           flash.visible = false;
           flashMat.opacity = 1;
@@ -166,10 +172,8 @@ export function createShotFx(scene) {
 
       if (tracerLife > 0) {
         tracerLife -= dt;
-        tracerMat.opacity = Math.max(0, tracerLife / TRACER_LIFE);
         if (tracerLife <= 0) {
           tracer.visible = false;
-          tracerMat.opacity = 1;
         }
       }
 

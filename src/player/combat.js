@@ -1,12 +1,10 @@
-// Оружие героя: кулаки/пистолет, луч, урон педам, тело физики, поза прицела.
+// Оружие героя: кулаки, учёт патронов/выстрела пистолета (луч и урон пули — aim-ray.js), тело физики.
 
 import { hurtPlayer } from './health.js';
 
 export const MAG_SIZE = 12;
 export const FIST_RANGE = 1.4;
 export const FIST_DAMAGE = 15;
-export const PISTOL_DAMAGE = 34;
-export const PISTOL_RANGE = 80;
 
 /** Предыдущий кадр ЛКМ (модуль, не state) — фронт false→true, если pressed('Mouse0') нет. */
 let prevMouseLeft = false;

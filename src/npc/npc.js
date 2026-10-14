@@ -32,7 +32,7 @@ export class Npcs {
     const snapshot = api.list.slice();
     for (let i = 0; i < snapshot.length; i++) {
       stepPed(snapshot[i], dt, engine);
-      applyPedStride(snapshot[i]);
+      applyPedStride(snapshot[i], dt);
     }
 
     const pos = engine.state.player && engine.state.player.position;

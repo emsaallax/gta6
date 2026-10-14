@@ -1,19 +1,19 @@
 // ФАЙЛЫ: src/player/gait-stride.js, src/npc/ped-gait.js
 // Шаг без скольжения: timeScale клипа = скорость / опорная, процедурные ноги по фазе.
 
-export const WALK_REF_SPEED = 4;
-export const SPRINT_REF_SPEED = 9;
+export const WALK_REF_SPEED = 1.4;   // авторская скорость клипа Kenney walk
+export const SPRINT_REF_SPEED = 3.5; // клип sprint
 export const WALK_STRIDE = 1.35;
 export const SPRINT_STRIDE = 2.4;
-export const TIMESCALE_MIN = 0.45;
-export const TIMESCALE_MAX = 1.8;
+export const TIMESCALE_MIN = 0.35;
+export const TIMESCALE_MAX = 3.2;
 
 const TWO_PI = Math.PI * 2;
 const AMP_WALK = 0.42;
 const AMP_RUN = 0.72;
 const STEP_VOLUME = 0.35;
 
-/** gait 'walk' → speed/4; 'run' → speed/9; иначе 1. clamp 0.45..1.8. Не finite → 1. */
+/** gait 'walk' → speed/1.4; 'run' → speed/3.5; иначе 1. clamp 0.35..3.2. Не finite → 1. */
 export function strideTimeScale(speed, gait) {
   let scale = 1;
   if (gait === 'walk') scale = speed / WALK_REF_SPEED;
@@ -63,8 +63,7 @@ export function applyKenneyStride(hero, speed, gait) {
   if (clip !== 'walk' && clip !== 'sprint') return;
   const action = hero.actions[clip];
   if (!action) return;
-  const g = clip === 'sprint' || gait === 'run' ? 'run' : 'walk';
-  action.timeScale = strideTimeScale(speed, g);
+  action.timeScale = strideTimeScale(speed, clip === 'sprint' ? 'run' : 'walk');
 }
 
 /**

@@ -10,7 +10,6 @@ import {
   syncPlayerBody,
 } from './combat.js';
 import { loadKenneyHero, updateKenneyHero } from './kenney-hero.js';
-import { bindRecoil, stepRecoil } from './recoil.js';
 import { applyKenneyStride, applyStridePose, maybePlayStep } from './gait-stride.js';
 import {
   createAimPoseState,
@@ -23,6 +22,13 @@ import {
 import { firePistol } from './aim-ray.js';
 import { createShotFx } from './shot-fx.js';
 import { stepHeroTurn } from './turn-heading.js';
+import {
+  createGunKick,
+  notifyGunKick,
+  stepGunKick,
+  applyGunKickPose,
+  ejectShell,
+} from './gun-kick.js';
 
 export class Player {
   init(e) {
@@ -33,6 +39,7 @@ export class Player {
     this.move = createMoveState();
     this.aimPose = createAimPoseState();
     this.shotFx = createShotFx(e.scene);
+    this.gunKick = createGunKick();
     this.kenney = null;
     this._kenneyWait = false;
     this._kenneyDone = false;
@@ -48,7 +55,6 @@ export class Player {
     };
     initPlayerHealth(e.state.player);
     initPlayerCombat(e);
-    bindRecoil(e);
     this._tryKenney(e);
   }
 
@@ -103,19 +109,32 @@ export class Player {
   _tickShot(e, dt, pistolShot) {
     if (pistolShot) {
       notifyShot(this.aimPose);
+      notifyGunKick(this.gunKick);
       const hit = firePistol(e);
       if (hit && this.shotFx && hit.muzzle && hit.hitPoint) {
         this.shotFx.play(hit.muzzle, hit.hitPoint, e);
       }
+      ejectShell(e, hit && hit.muzzle);
     }
     if (this.shotFx) this.shotFx.update(dt);
   }
 
   _tickGaitAndPose(e, p, dt, melee) {
-    const spd = Math.hypot(this.move.vx, this.move.vz);
+    let spd = 0;
+    const px = p.position.x;
+    const pz = p.position.z;
+    if (dt > 0 && this._prevX !== undefined) {
+      const dx = px - this._prevX;
+      const dz = pz - this._prevZ;
+      const d = Math.hypot(dx, dz);
+      if (d <= 5) spd = d / dt;
+    }
+    this._prevX = px;
+    this._prevZ = pz;
+    if (spd < 0.3) spd = 0;
     const gait = this.move.gait;
     const poseOn = wantAimPose(this.aimPose, p);
-    const walking = this.move.grounded && (gait === 'walk' || gait === 'run');
+    const walking = spd > 0 && this.move.grounded && (gait === 'walk' || gait === 'run');
     const prevPhase = this.anim.phase || 0;
     if (walking) {
       applyStridePose(this.anim, this.parts || {}, spd, gait, dt);
@@ -126,6 +145,7 @@ export class Player {
       updateKenneyHero(this.kenney, this._heroFlags(p, melee, poseOn), dt);
       applyKenneyStride(this.kenney, spd, gait);
       applyKenneyAim(this.kenney, poseOn);
+      applyGunKickPose(this.gunKick, null, this.kenney);
     } else if (this.parts) {
       if (!walking) {
         applyPlayerAnim(this.anim, this.parts, {
@@ -134,6 +154,7 @@ export class Player {
         }, dt);
       }
       applyProceduralAim(this.parts, p, poseOn);
+      applyGunKickPose(this.gunKick, this.parts, null);
     }
   }
 
@@ -205,6 +226,6 @@ export class Player {
       height: aiming ? 1.6 : (this.move.crouching ? 1.2 : 1.8),
       mode: 'foot',
     };
-    stepRecoil(e.state.cameraTarget, dt);
+    stepGunKick(this.gunKick, e.state.cameraTarget, dt);
   }
 }

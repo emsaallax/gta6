@@ -1,3 +1,4 @@
+import { drawSearchCircle } from './searchCircle.js';
 // Круглая миникарта слева снизу. Только читает state, ничего не пишет.
 const CSS_SIZE = 180;
 const RADIUS_METERS = 80;
@@ -197,6 +198,8 @@ export class Minimap {
       ctx.fill();
       ctx.stroke();
     }
+
+    drawSearchCircle(ctx, engine.state.wanted?.search, px, pz, scale, dpr, performance.now() / 1000);
 
     ctx.restore();
 

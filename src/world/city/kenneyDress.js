@@ -374,7 +374,7 @@ export async function buildKenneyDress(engine, layout) {
     globeMat = loaded.lamp.mat || stdMat(0xffe8b0, { emissive: 0xffe8b0, roughness: 0.45 });
     globeMat.emissiveIntensity = 0;
     if (globeMat.emissive && globeMat.emissive.getHex() === 0) globeMat.emissive.setHex(0xffe8b0);
-    const mesh = makeInstanced(geo, globeMat, lampPts.length, true);
+    const mesh = makeInstanced(geo, globeMat, lampPts.length, false);
     fillGround(mesh, lampPts, -sz.minY * sy, sy, sy, sy);
     scene.add(mesh);
     meshes.push(mesh);
@@ -402,12 +402,12 @@ export async function buildKenneyDress(engine, layout) {
     const geo = loaded.dumpster.geo;
     const sz = geoSize(geo);
     const s = 1.1 / Math.max(sz.x, sz.z);
-    const mesh = makeInstanced(geo, loaded.dumpster.mat || stdMat(0x6a6a6a), dumpPts.length, true);
+    const mesh = makeInstanced(geo, loaded.dumpster.mat || stdMat(0x6a6a6a), dumpPts.length, false);
     fillGround(mesh, dumpPts, -sz.minY * s, s, s, s);
     scene.add(mesh);
     meshes.push(mesh);
   } else {
-    const mesh = makeInstanced(makeDumpsterFallback(), stdMat(0x6a6a6a), dumpPts.length, true);
+    const mesh = makeInstanced(makeDumpsterFallback(), stdMat(0x6a6a6a), dumpPts.length, false);
     fillGround(mesh, dumpPts, 0.5, 1, 1, 1);
     scene.add(mesh);
     meshes.push(mesh);
@@ -417,12 +417,12 @@ export async function buildKenneyDress(engine, layout) {
     const geo = loaded.bush.geo;
     const sz = geoSize(geo);
     const s = 1.1 / Math.max(sz.x, sz.z, sz.y);
-    const mesh = makeInstanced(geo, loaded.bush.mat || stdMat(0x4aad55), bushPts.length, true);
+    const mesh = makeInstanced(geo, loaded.bush.mat || stdMat(0x4aad55), bushPts.length, false);
     fillGround(mesh, bushPts, -sz.minY * s, s, s, s);
     scene.add(mesh);
     meshes.push(mesh);
   } else {
-    const mesh = makeInstanced(makeBushFallback(), stdMat(0x4aad55), bushPts.length, true);
+    const mesh = makeInstanced(makeBushFallback(), stdMat(0x4aad55), bushPts.length, false);
     fillGround(mesh, bushPts, 0.55, 1, 1, 1);
     scene.add(mesh);
     meshes.push(mesh);
@@ -505,7 +505,7 @@ export async function buildKenneyDress(engine, layout) {
     : stdMat(0xd8c4ae, { roughness: 0.9 });
   const lodGeo = loaded.lod ? loaded.lod.geo : makeLodFallback();
   const lodSz = geoSize(lodGeo);
-  lodMesh = makeInstanced(lodGeo, lodMat, lodPts.length, true);
+  lodMesh = makeInstanced(lodGeo, lodMat, lodPts.length, false);
   lodBases = [];
   for (let i = 0; i < lodPts.length; i++) {
     const p = lodPts[i];
